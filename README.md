@@ -56,3 +56,18 @@ oh no did mommy's little girl make a big mess~?
 ―❤―▶ mommy -
 mommy thinks her little girl is getting close~
 ```
+
+## Irrelevant Tidbits
+
+Benchmarks!! These numbers are useless, please don't compare them at all!
+
+```
+goos: linux
+goarch: amd64
+pkg: libdb.so/go-mommy
+cpu: 12th Gen Intel(R) Core(TM) i5-1240P
+BenchmarkGenerate/string-16         	3006885	      388.4 ns/op	    410 B/op	      4 allocs/op
+BenchmarkGenerate/discard-16        	3472392	      340.1 ns/op	    336 B/op	      2 allocs/op
+PASS
+ok  	libdb.so/go-mommy	3.113s
+```

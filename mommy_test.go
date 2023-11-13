@@ -1,6 +1,7 @@
 package mommy
 
 import (
+	"io"
 	"math/rand"
 	"testing"
 
@@ -113,4 +114,20 @@ func TestGenerator(t *testing.T) {
 			assert.Equal(t, test.expected, actual)
 		})
 	}
+}
+
+func BenchmarkGenerate(b *testing.B) {
+	rng := rand.New(rand.NewSource(0))
+	gen, _ := NewGeneratorWithRandom(DefaultResponses, rng)
+
+	b.Run("string", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			gen.Generate(PositiveResponse, nil)
+		}
+	})
+	b.Run("discard", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			gen.GenerateTo(io.Discard, PositiveResponse, nil)
+		}
+	})
 }
