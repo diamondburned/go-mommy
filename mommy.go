@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"math/rand"
+	"slices"
 	"time"
 
 	_ "embed"
@@ -132,8 +133,9 @@ const (
 type Generator struct {
 	Random *rand.Rand
 
-	variables map[VariableKey]Variable
-	templates map[templateKey][]templater
+	variableKeys []VariableKey
+	variables    map[VariableKey]Variable
+	templates    map[templateKey][]templater
 }
 
 type templateKey struct {
@@ -152,6 +154,14 @@ func NewGenerator(config Responses) (*Generator, error) {
 // random number generator.
 func NewGeneratorWithRandom(config Responses, random *rand.Rand) (*Generator, error) {
 	g := &Generator{Random: random}
+
+	// Maintain a list of variable keys so that we can iterate over them
+	// in a deterministic order. This is important for testing.
+	g.variableKeys = make([]VariableKey, 0, len(config.Vars))
+	for k := range config.Vars {
+		g.variableKeys = append(g.variableKeys, k)
+	}
+	slices.Sort(g.variableKeys)
 
 	g.variables = config.Vars
 	g.templates = make(map[templateKey][]templater, len(config.Moods))
@@ -187,11 +197,14 @@ type Overrides map[VariableKey]string
 // If a variable has no default values, then it will return an error
 func (g *Generator) Generate(response ResponseType, overrides Overrides) (string, error) {
 	values := make(map[VariableKey]string, len(g.variables))
-	for k, v := range g.variables {
+	for _, k := range g.variableKeys {
+		v := g.variables[k]
+
 		if override, ok := overrides[k]; ok {
 			values[k] = override
 			continue
 		}
+
 		if len(v.Defaults) == 0 {
 			return "", fmt.Errorf("no default values for variable %q", k)
 		}
