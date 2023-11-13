@@ -80,19 +80,33 @@ type Template string
 // Mood contains the responses for a given mood. It is represented as
 // a list of positive and negative responses, and optionally a spiciness
 // level.
-type Mood map[ResponseType][]Template
+type Mood struct {
+	Positive  []Template `json:"positive"`
+	Negative  []Template `json:"negative"`
+	Spiciness Spiciness  `json:"spiciness,omitempty"` // NSFW
+}
 
 // VariableKey is the key for a response variable.
 type VariableKey string
 
 const (
-	VariableMood             VariableKey = "mood"
-	VariableEmote            VariableKey = "emote"
-	VariablePronoun          VariableKey = "pronoun"
-	VariableRole             VariableKey = "role"
+	// VariableMood determines the spiciness of the response.
+	// It is any of the Spiciness constants.
+	VariableMood VariableKey = "mood"
+	// VariableEmote is an emoji that may be used in the response.
+	VariableEmote VariableKey = "emote"
+	// VariablePronoun is the possessive pronoun that mommy will use.
+	VariablePronoun VariableKey = "pronoun"
+	// VariableRole is the role that mommy will use, e.g. "mommy".
+	VariableRole VariableKey = "role"
+	// VariableAffectionateTerm is an affectionate term that mommy will use to
+	// refer to you.
 	VariableAffectionateTerm VariableKey = "affectionate_term"
-	VariableDenigratingTerm  VariableKey = "denigrating_term" // NSFW
-	VariablePart             VariableKey = "part"             // NSFW
+	// VariableDenigratingTerm is a denigrating term that mommy will use to
+	// refer to you.
+	VariableDenigratingTerm VariableKey = "denigrating_term" // NSFW
+	// VariablePart is a part of your body that mommy will refer to.
+	VariablePart VariableKey = "part" // NSFW
 )
 
 // Variable is a variable that is used in the string templates.
@@ -138,10 +152,16 @@ func NewGenerator(config Responses) (*Generator, error) {
 // random number generator.
 func NewGeneratorWithRandom(config Responses, random *rand.Rand) (*Generator, error) {
 	g := &Generator{Random: random}
+
 	g.variables = config.Vars
 	g.templates = make(map[templateKey][]templater, len(config.Moods))
+
 	for spiciness, mood := range config.Moods {
-		for responseType, stringTemplates := range mood {
+		moods := make(map[ResponseType][]Template, 2)
+		moods[PositiveResponse] = mood.Positive
+		moods[NegativeResponse] = mood.Negative
+
+		for responseType, stringTemplates := range moods {
 			templates := make([]templater, len(stringTemplates))
 			for i, stringTemplate := range stringTemplates {
 				templates[i] = compileTemplate(stringTemplate)
@@ -154,10 +174,10 @@ func NewGeneratorWithRandom(config Responses, random *rand.Rand) (*Generator, er
 	return g, nil
 }
 
-// GenerateOverrides is a map of variable keys to values that can be used to
+// Overrides is a map of variable keys to values that can be used to
 // override the default values. If a variable is not present in this map, then
 // a random default value will be used.
-type GenerateOverrides map[VariableKey]string
+type Overrides map[VariableKey]string
 
 // Generate generates a response from the given response type with an optional
 // set of overrides.
@@ -165,7 +185,7 @@ type GenerateOverrides map[VariableKey]string
 // If a variable is not present in the overrides map, then it will use a random
 // default value.
 // If a variable has no default values, then it will return an error
-func (g *Generator) Generate(response ResponseType, overrides GenerateOverrides) (string, error) {
+func (g *Generator) Generate(response ResponseType, overrides Overrides) (string, error) {
 	values := make(map[VariableKey]string, len(g.variables))
 	for k, v := range g.variables {
 		if override, ok := overrides[k]; ok {
