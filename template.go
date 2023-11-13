@@ -1,6 +1,7 @@
 package mommy
 
 import (
+	"io"
 	"regexp"
 	"strings"
 )
@@ -35,13 +36,24 @@ func compileTemplate(t Template) templater {
 func (t templater) render(vars map[VariableKey]string) string {
 	var s strings.Builder
 	s.Grow(len(t.text))
+	t.renderTo(&s, vars)
+	return s.String()
+}
 
-	last := 0
+func (t templater) renderTo(w io.Writer, vars map[VariableKey]string) error {
+	var last int
+	var err error
 	for _, span := range t.spans {
-		s.WriteString(string(t.text[last:span.span[0]]))
-		s.WriteString(vars[span.key])
+		_, err = io.WriteString(w, string(t.text[last:span.span[0]]))
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(w, vars[span.key])
+		if err != nil {
+			return err
+		}
 		last = span.span[1]
 	}
-	s.WriteString(string(t.text[last:]))
-	return s.String()
+	_, err = io.WriteString(w, string(t.text[last:]))
+	return err
 }

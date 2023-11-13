@@ -3,6 +3,7 @@ package mommy
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"math/rand"
 	"slices"
@@ -172,6 +173,10 @@ func NewGeneratorWithRandom(config Responses, random *rand.Rand) (*Generator, er
 		moods[NegativeResponse] = mood.Negative
 
 		for responseType, stringTemplates := range moods {
+			if len(stringTemplates) == 0 {
+				return nil, fmt.Errorf("no templates for %s.%s", spiciness, responseType)
+			}
+
 			templates := make([]templater, len(stringTemplates))
 			for i, stringTemplate := range stringTemplates {
 				templates[i] = compileTemplate(stringTemplate)
@@ -196,6 +201,22 @@ type Overrides map[VariableKey]string
 // default value.
 // If a variable has no default values, then it will return an error
 func (g *Generator) Generate(response ResponseType, overrides Overrides) (string, error) {
+	template, values, err := g.generate(response, overrides)
+	if err != nil {
+		return "", err
+	}
+	return template.render(values), nil
+}
+
+func (g *Generator) GenerateTo(w io.Writer, response ResponseType, overrides Overrides) error {
+	template, values, err := g.generate(response, overrides)
+	if err != nil {
+		return err
+	}
+	return template.renderTo(w, values)
+}
+
+func (g *Generator) generate(response ResponseType, overrides Overrides) (*templater, map[VariableKey]string, error) {
 	values := make(map[VariableKey]string, len(g.variables))
 	for _, k := range g.variableKeys {
 		v := g.variables[k]
@@ -206,7 +227,7 @@ func (g *Generator) Generate(response ResponseType, overrides Overrides) (string
 		}
 
 		if len(v.Defaults) == 0 {
-			return "", fmt.Errorf("no default values for variable %q", k)
+			return nil, nil, fmt.Errorf("no default values for variable %q", k)
 		}
 		values[k] = v.Defaults[g.Random.Intn(len(v.Defaults))]
 	}
@@ -215,9 +236,9 @@ func (g *Generator) Generate(response ResponseType, overrides Overrides) (string
 
 	templates, ok := g.templates[key]
 	if !ok {
-		return "", fmt.Errorf("no templates for mood %q and response type %q", values[VariableMood], response)
+		return nil, nil, fmt.Errorf("no templates for mood %q and response type %q", values[VariableMood], response)
 	}
 
-	template := templates[g.Random.Intn(len(templates))]
-	return template.render(values), nil
+	template := &templates[g.Random.Intn(len(templates))]
+	return template, values, nil
 }
