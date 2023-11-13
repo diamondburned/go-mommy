@@ -7,6 +7,7 @@ import (
 	"maps"
 	"math/rand"
 	"slices"
+	"sync"
 	"time"
 
 	_ "embed"
@@ -131,8 +132,9 @@ const (
 )
 
 // Generator is a mommy response generator.
+// It is safe for concurrent use.
 type Generator struct {
-	Random *rand.Rand
+	rng safeRand
 
 	variableKeys []VariableKey
 	variables    map[VariableKey]Variable
@@ -147,14 +149,14 @@ type templateKey struct {
 // NewGenerator creates a new mommy response generator with a new automatically
 // seeded random number generator.
 func NewGenerator(config Responses) (*Generator, error) {
-	random := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return NewGeneratorWithRandom(config, random)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	return NewGeneratorWithRandom(config, rng)
 }
 
 // NewGeneratorWithRandom creates a new mommy response generator with the given
 // random number generator.
-func NewGeneratorWithRandom(config Responses, random *rand.Rand) (*Generator, error) {
-	g := &Generator{Random: random}
+func NewGeneratorWithRandom(config Responses, rng *rand.Rand) (*Generator, error) {
+	g := &Generator{rng: safeRand{rand: rng}}
 
 	// Maintain a list of variable keys so that we can iterate over them
 	// in a deterministic order. This is important for testing.
@@ -229,7 +231,7 @@ func (g *Generator) generate(response ResponseType, overrides Overrides) (*templ
 		if len(v.Defaults) == 0 {
 			return nil, nil, fmt.Errorf("no default values for variable %q", k)
 		}
-		values[k] = v.Defaults[g.Random.Intn(len(v.Defaults))]
+		values[k] = v.Defaults[g.rng.Intn(len(v.Defaults))]
 	}
 
 	key := templateKey{values[VariableMood], response}
@@ -239,6 +241,18 @@ func (g *Generator) generate(response ResponseType, overrides Overrides) (*templ
 		return nil, nil, fmt.Errorf("no templates for mood %q and response type %q", values[VariableMood], response)
 	}
 
-	template := &templates[g.Random.Intn(len(templates))]
+	template := &templates[g.rng.Intn(len(templates))]
 	return template, values, nil
+}
+
+// go moment!
+type safeRand struct {
+	mu   sync.Mutex
+	rand *rand.Rand
+}
+
+func (r *safeRand) Intn(n int) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.rand.Intn(n)
 }
