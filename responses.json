@@ -108,7 +108,9 @@
       ]
     },
     "role": {
-      "defaults": []
+      "defaults": [
+        "mommy"
+      ]
     },
     "affectionate_term": {
       "defaults": [
