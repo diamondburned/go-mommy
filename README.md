@@ -43,3 +43,16 @@ Flags:
   -S, --seed int                  seed for the random number generator (default 1699884773843756301)
   -s, --stylize                   stylize the output using ANSI escape codes
 ```
+
+Example:
+
+```
+―❤―▶ mommy -
+oops~! mommy loves you anyways~
+
+―❤―▶ mommy -
+oh no did mommy's little girl make a big mess~?
+
+―❤―▶ mommy -
+mommy thinks her little girl is getting close~
+```
