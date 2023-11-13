@@ -30,7 +30,7 @@ func init() {
 // It is used to unmarshal the responses.json file.
 type Responses struct {
 	// Moods is a map of moods that mommy has. This map contains the responses
-	// that mommy will use when she is in that mood.
+	// that mommy will use when they are in that mood.
 	Moods map[Spiciness]Mood `json:"moods"`
 	// Vars is a map of variables that can be used in the responses.
 	// It is used in tandem with the template strings.
@@ -106,7 +106,7 @@ const (
 	// VariableDenigratingTerm is a denigrating term that mommy will use to
 	// refer to you.
 	VariableDenigratingTerm VariableKey = "denigrating_term" // NSFW
-	// VariablePart is a part of your body that mommy will refer to.
+	// VariablePart is a part of mommy's body that they will refer to.
 	VariablePart VariableKey = "part" // NSFW
 )
 
