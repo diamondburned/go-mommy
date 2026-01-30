@@ -67,6 +67,7 @@ type Spiciness = string
 
 const (
 	Chill   Spiciness = "chill"
+	Ominous Spiciness = "ominous"
 	Thirsty Spiciness = "thirsty" // NSFW
 	Yikes   Spiciness = "yikes"   // NSFW
 )
