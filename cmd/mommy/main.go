@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -31,6 +33,7 @@ var (
 	stylize       = false
 	nsfw          = false
 	seed          = int64(time.Now().UnixNano())
+	runCmd        = false
 )
 
 func defaultValues(key mommy.VariableKey) []string {
@@ -48,6 +51,8 @@ func init() {
 		"seed for the random number generator")
 	pflag.StringVarP(&responsesFile, "responses-file", "f", responsesFile,
 		"responses.json file (default: bundled responses.json)")
+	pflag.BoolVarP(&runCmd, "cmd", "c", runCmd,
+		"run arguments as a command, printing the response depending on exit code")
 
 	// Determine if our flags should be --mommy-* or --daddy-*.
 	role := "mommy"
@@ -109,25 +114,62 @@ func init() {
 func main() {
 	pflag.Parse()
 
-	var responseType mommy.ResponseType
-	switch arg := pflag.Arg(0); arg {
-	case "positive", "+", "0":
-		responseType = mommy.PositiveResponse
-	case "negative", "-", "1":
-		responseType = mommy.NegativeResponse
-	default:
-		fatal(fmt.Sprintf("unknown response type %q, want positive|negative", arg))
+	gen, err := newGenerator()
+	if err != nil {
+		fatal(err)
 	}
 
+	var responseType mommy.ResponseType
+	var exitCode int
+
+	if runCmd {
+		cmd := exec.Command(pflag.Arg(0), pflag.Args()[1:]...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+
+		if err := cmd.Run(); err != nil {
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) {
+				fatal(err)
+			}
+			exitCode = exitErr.ExitCode()
+			responseType = mommy.NegativeResponse
+		} else {
+			responseType = mommy.PositiveResponse
+		}
+	} else {
+		switch arg := pflag.Arg(0); arg {
+		case "positive", "+", "0":
+			responseType = mommy.PositiveResponse
+		case "negative", "-", "1":
+			responseType = mommy.NegativeResponse
+		default:
+			fatal(fmt.Sprintf("unknown response type %q, want positive|negative", arg))
+		}
+	}
+
+	res, err := gen.Generate(responseType, nil)
+	if err != nil {
+		fatal(err)
+	}
+
+	res = stylizeResponse(res)
+	fmt.Println(res)
+
+	os.Exit(exitCode)
+}
+
+func newGenerator() (*mommy.Generator, error) {
 	config := mommy.DefaultResponses
 	if responsesFile != "" {
 		b, err := os.ReadFile(responsesFile)
 		if err != nil {
-			fatal("cannot read responses file:", err)
+			return nil, fmt.Errorf("cannot read responses file: %w", err)
 		}
 		config, err = mommy.UnmarshalResponses(b)
 		if err != nil {
-			fatal("cannot parse responses file:", err)
+			return nil, fmt.Errorf("cannot unmarshal responses file: %w", err)
 		}
 	}
 
@@ -140,23 +182,17 @@ func main() {
 	overrideDefaults(&config, mommy.VariablePart, parts)
 
 	if !nsfw && isNSFW(config) {
-		fatal("cannot generate NSFW content without --nsfw")
+		return nil, errors.New("cannot use NSFW moods or parts without --nsfw")
 	}
 
 	rng := rand.New(rand.NewSource(seed))
 
 	gen, err := mommy.NewGeneratorWithRandom(config, rng)
 	if err != nil {
-		fatal(err)
+		return nil, fmt.Errorf("cannot create generator: %w", err)
 	}
 
-	res, err := gen.Generate(responseType, nil)
-	if err != nil {
-		fatal(err)
-	}
-
-	res = stylizeResponse(res)
-	fmt.Println(res)
+	return gen, nil
 }
 
 func overrideDefaults(cfg *mommy.Responses, key mommy.VariableKey, defaults []string) {
@@ -168,12 +204,13 @@ func overrideDefaults(cfg *mommy.Responses, key mommy.VariableKey, defaults []st
 }
 
 func fatal(v ...any) {
+	log.Println(v...)
 	gen, _ := mommy.NewGeneratorWithRandom(mommy.DefaultResponses, rand.New(rand.NewSource(seed)))
 	res, _ := gen.Generate(mommy.NegativeResponse, mommy.Overrides{
 		mommy.VariableMood: mommy.Chill,
 	})
 	log.Println(res)
-	log.Fatalln(v...)
+	os.Exit(1)
 }
 
 func stylizeResponse(res string) string {
