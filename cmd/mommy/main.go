@@ -154,7 +154,11 @@ func main() {
 		fatal(err)
 	}
 
-	res = stylizeResponse(res)
+	// https://no-color.org/
+	if stylize && os.Getenv("NO_COLOR") == "" {
+		res = stylizeResponse(res)
+	}
+
 	fmt.Println(res)
 
 	os.Exit(exitCode)
